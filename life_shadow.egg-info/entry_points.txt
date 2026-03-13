@@ -1,0 +1,2 @@
+[console_scripts]
+life-shadow = main:main

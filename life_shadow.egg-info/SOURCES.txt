@@ -1,0 +1,10 @@
+README.md
+pyproject.toml
+backend/__init__.py
+frontend/__init__.py
+life_shadow.egg-info/PKG-INFO
+life_shadow.egg-info/SOURCES.txt
+life_shadow.egg-info/dependency_links.txt
+life_shadow.egg-info/entry_points.txt
+life_shadow.egg-info/requires.txt
+life_shadow.egg-info/top_level.txt

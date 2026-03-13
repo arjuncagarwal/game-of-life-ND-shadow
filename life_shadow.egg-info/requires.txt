@@ -1,0 +1,11 @@
+numpy>=1.24
+scipy>=1.10
+pygame>=2.5
+matplotlib>=3.7
+
+[dev]
+pytest>=7.0
+pytest-cov
+
+[volume]
+pyvista>=0.42
