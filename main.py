@@ -29,8 +29,10 @@ def parse_args() -> argparse.Namespace:
                         help="Simulation steps per second")
     parser.add_argument("--colormap", type=str, default="inferno",
                         help="Matplotlib colormap name for density mode")
-    parser.add_argument("--cell-size", type=int, default=8,
+    parser.add_argument("--cell-size", type=int, default=32,
                         help="Pixels per cell in display")
+    parser.add_argument("--heatmap", action="store_true",
+                        help="Use heatmap projection instead of wireframe shadow cast")
     return parser.parse_args()
 
 
@@ -47,6 +49,7 @@ def main() -> None:
         sim_rate=args.sim_rate,
         colormap=args.colormap,
         cell_size=args.cell_size,
+        render_mode='heatmap' if args.heatmap else 'shadow',
     )
 
     ruleset = parse_rule(args.rule)

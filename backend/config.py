@@ -1,6 +1,6 @@
 """SimConfig dataclass for life-shadow."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Literal
 
 
@@ -14,9 +14,11 @@ class SimConfig:
     blob_radius: int = 8
     sim_rate: int = 10                 # steps per second
     colormap: str = 'inferno'
-    cell_size: int = 8                 # pixels per cell
+    cell_size: int = 32                # pixels per cell
+    render_mode: Literal['shadow', 'heatmap'] = 'shadow'
     show_hud: bool = True
     show_gridlines: bool = False
+    show_keybindings: bool = False
 
     def __post_init__(self) -> None:
         self.dimensions = tuple(self.dimensions)

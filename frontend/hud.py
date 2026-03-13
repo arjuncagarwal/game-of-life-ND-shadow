@@ -20,6 +20,23 @@ def _get_font() -> pygame.font.Font:
     return _font
 
 
+_KEYBINDINGS = [
+    ("Space",   "play / pause"),
+    ("→",       "step (paused)"),
+    ("R",       "re-seed"),
+    ("E",       "explore mode"),
+    ("D",       "binary / density"),
+    ("X/Y/Z",   "projection axis"),
+    ("C",       "cycle colormap"),
+    ("+/-",     "sim rate"),
+    ("G",       "gridlines"),
+    ("S",       "save snapshot"),
+    ("H",       "toggle HUD"),
+    ("K",       "keybindings"),
+    ("Q",       "quit"),
+]
+
+
 def draw(
     surface: pygame.Surface,
     state: SimState,
@@ -36,7 +53,7 @@ def draw(
     total = state.grid.size
     shadow_fill = population / total * 100 if total else 0.0
 
-    lines = [
+    stats = [
         f"gen   {state.generation}",
         f"rule  {state.ruleset.notation()}",
         f"pop   {population}",
@@ -47,13 +64,21 @@ def draw(
         f"sim   {mode}",
     ]
 
-    w = max(font.size(line)[0] for line in lines) + _PAD * 2
-    h = len(lines) * _LINE_H + _PAD * 2
+    kb_lines: list[str] = []
+    if config.show_keybindings:
+        kb_lines = ["", "  keybindings"] + [f"  {k:<7} {desc}" for k, desc in _KEYBINDINGS]
+
+    all_lines = stats + kb_lines
+
+    w = max(font.size(line)[0] for line in all_lines) + _PAD * 2
+    h = len(all_lines) * _LINE_H + _PAD * 2
 
     backdrop = pygame.Surface((w, h), pygame.SRCALPHA)
     backdrop.fill((0, 0, 0, 160))
     surface.blit(backdrop, (0, 0))
 
-    for i, line in enumerate(lines):
-        text_surf = font.render(line, True, (220, 220, 220))
+    for i, line in enumerate(all_lines):
+        # Dim the keybinding section slightly relative to stats
+        color = (180, 180, 180) if i >= len(stats) else (220, 220, 220)
+        text_surf = font.render(line, True, color)
         surface.blit(text_surf, (_PAD, _PAD + i * _LINE_H))

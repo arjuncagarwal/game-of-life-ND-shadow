@@ -9,8 +9,10 @@ from backend.config import SimConfig
 from backend.engine import step
 from backend.projection import shadow_binary, shadow_density
 from backend.state import SimState
+from backend.projection import shadow_binary
 from frontend.colormap import build_lut
 from frontend.renderer import render_shadow
+from frontend.shadow_cast import cast_shadow, render_cast_shadow
 from frontend import hud, controls
 
 
@@ -30,12 +32,14 @@ class App:
         pygame.font.init()
 
         w, h = self._window_size()
-        self._surface = pygame.display.set_mode((w, h))
+        self._surface = pygame.display.set_mode((w, h), pygame.RESIZABLE)
         pygame.display.set_caption('life-shadow')
 
         self._clock = pygame.time.Clock()
         self._lut = build_lut(self.config.colormap)
         self._prev_cmap = self.config.colormap
+        self._canvas = pygame.Surface((w, h))   # offscreen at logical size
+        self._canvas_shape = self.config.shadow_shape
 
     # ------------------------------------------------------------------
 
@@ -71,13 +75,24 @@ class App:
                 self._lut = build_lut(self.config.colormap)
                 self._prev_cmap = self.config.colormap
 
-            # Resize window if shadow shape changed (e.g. axis switch)
-            expected_w, expected_h = self._window_size()
-            if (expected_w, expected_h) != self._surface.get_size():
-                self._surface = pygame.display.set_mode((expected_w, expected_h))
+            # Rebuild canvas if shadow shape changed (e.g. axis switch)
+            if self.config.shadow_shape != self._canvas_shape:
+                w, h = self._window_size()
+                self._canvas = pygame.Surface((w, h))
+                self._canvas_shape = self.config.shadow_shape
 
-            shadow = self._project()
-            render_shadow(shadow, self._surface, self.config, self._lut)
+            if self.config.render_mode == 'shadow':
+                self._render_shadow_cast()
+            else:
+                shadow = self._project()
+                render_shadow(shadow, self._canvas, self.config, self._lut)
+
+            # Scale only the CA shadow to the current window size
+            win_size = self._surface.get_size()
+            scaled = pygame.transform.scale(self._canvas, win_size)
+            self._surface.blit(scaled, (0, 0))
+
+            # HUD drawn on the window surface directly — never magnified
             hud.draw(self._surface, self.state, self.config, mode, fps)
             pygame.display.flip()
 
@@ -92,6 +107,16 @@ class App:
             self.state.ruleset.survival,
         )
         self.state.generation += 1
+
+    def _render_shadow_cast(self) -> None:
+        """Compute and blit wireframe shadow cast to _canvas."""
+        grid = self.state.grid
+        # Collapse to 3D if higher-dimensional
+        while grid.ndim > 3:
+            grid = shadow_binary(grid, axis=-1)
+        W, H = self._canvas.get_size()
+        acc = cast_shadow(grid, (W, H))
+        render_cast_shadow(acc, self._canvas, self._lut)
 
     def _project(self) -> np.ndarray:
         """Collapse the grid to a 2D shadow, double-projecting for 4D+."""

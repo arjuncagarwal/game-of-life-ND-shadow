@@ -3,8 +3,14 @@
 ## Overview
 
 A cellular automata engine that runs Conway-style Game of Life in N dimensions and visualizes
-the result as an (N-1)-dimensional "shadow" projection. The shadow is the collapse of one
-spatial axis — either binary (any live cell in column?) or density (how many live cells in column?).
+the result as an (N-1)-dimensional "shadow" projection.
+
+Two render modes:
+- **Shadow cast** (default): each live cell is a wireframe cube; a point light casts edge
+  shadows onto the floor plane below the CA space. Display is the top-down view of the floor.
+  Overlapping shadows accumulate additively. `--heatmap` disables this.
+- **Heatmap** (`--heatmap`): mathematical projection — binary (np.any) or density (np.sum)
+  along one axis, displayed as a colormapped 2D array.
 
 ## Module Details
 
@@ -116,6 +122,35 @@ Overlay text rendered with pygame.font.SysFont.
 Shows: generation, ruleset notation, population, shadow fill %, FPS, projection axis, mode.
 Semi-transparent background rect behind text.
 
+### frontend/shadow_cast.py
+
+Wireframe shadow renderer. Pure numpy, no pygame.
+
+**Geometry conventions**:
+- Cell `(i, j, k)` occupies world cube `[i, i+1] × [j+1, j+2] × [k, k+1]`.
+  The `+1` y-shift ensures all cells sit above the floor at `y = 0`.
+- Floor plane: `y = 0`. Display is the top-down view of the `(x, z)` floor.
+- Light position: `L = (1.5N, 3N, 1.5N)` where `N = max(grid.shape)`.
+  Placed above the far diagonal corner; shadows fall toward the near corner `(0, 0)`.
+- Floor display extent: `x ∈ [-0.2N, 1.2N]`, `z ∈ [-0.2N, 1.2N]` (20% margin each side).
+
+**`cube_edge_offsets() -> np.ndarray`** — shape `(12, 2, 3)` int8
+- The 12 edges of a unit cube as pairs of corner offsets from `(0,0,0)`.
+
+**`cast_shadow(grid: np.ndarray, out_size: tuple[int, int]) -> np.ndarray`**
+- `grid`: 3D uint8 array, shape `(Nx, Ny, Nz)`.
+- `out_size`: `(W, H)` pixel dimensions of the output floor image.
+- Returns float32 accumulator of shape `(H, W)` where each pixel counts shadow line
+  contributions. Fully vectorised: computes all edge projections in bulk, samples
+  `T = 50` points per edge, accumulates via `np.bincount`.
+- Post-processes with `scipy.ndimage.gaussian_filter(sigma=1)` for soft edges.
+
+**`render_cast_shadow(acc: np.ndarray, surface: pygame.Surface, lut: np.ndarray) -> None`**
+- Normalises accumulator 0→max to 0→255, applies LUT, blits to surface.
+
+**4D grids**: caller collapses 4D→3D via `shadow_binary(grid, axis=-1)` first,
+then passes the 3D result to `cast_shadow`.
+
 ### frontend/colormap.py
 
 **`build_lut(cmap_name: str) -> np.ndarray`**
@@ -125,6 +160,7 @@ Semi-transparent background rect behind text.
 ### main.py
 
 Entry point. Argparse for all SimConfig fields + rule override.
+`--heatmap` flag sets `render_mode = 'heatmap'` (default: `'shadow'`).
 Constructs config → state → app, calls app.run().
 
 ## Data Flow (one frame)

@@ -86,6 +86,9 @@ def handle_events(
         elif key == pygame.K_h:
             config.show_hud = not config.show_hud
 
+        elif key == pygame.K_k:
+            config.show_keybindings = not config.show_keybindings
+
     return False
 
 
