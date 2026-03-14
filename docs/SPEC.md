@@ -40,6 +40,16 @@ Stateless projection functions.
 **`shadow_density(grid: np.ndarray, axis: int) -> np.ndarray`**
 - `np.sum(grid, axis=axis)` — returns int array, max value = grid.shape[axis]
 
+**`shadow_depth_centroid(grid: np.ndarray, axis: int) -> tuple[np.ndarray, np.ndarray]`**
+- Returns `(depth_centroid, density)` for `depth_trails` projection mode.
+- `depth_centroid`: float32 array of shape `(N-1)-D`; each value is the normalized
+  index-weighted centroid of live cells along `axis`, in `[0, 1]`. Zero for empty columns.
+- `density`: float32 array of same shape; count of live cells along `axis`, normalized
+  to `[0, 1]` by `grid.shape[axis]`. Zero for empty columns.
+- Computation: move `axis` to last position, compute `count = g.sum(-1)`,
+  `weighted = (g * indices).sum(-1)` where `indices = np.arange(D)`;
+  `centroid = weighted / (count * (D-1))` where count > 0, else 0.
+
 ### backend/rules.py
 
 **`Ruleset` dataclass**: `name: str`, `birth: frozenset[int]`, `survival: frozenset[int]`
@@ -73,12 +83,13 @@ Stateless projection functions.
 **`SimConfig` dataclass**:
 - `dimensions: tuple[int, ...]` — e.g. (32, 32, 32) for 3D
 - `projection_axis: int` — which axis to collapse (default: last)
-- `projection_mode: Literal['binary', 'density']`
+- `projection_mode: Literal['binary', 'density', 'depth_trails']`
 - `seed_density: float` — initial alive probability (default: 0.15 for 3D)
 - `seed_mode: Literal['random', 'blob']`
 - `blob_radius: int`
 - `sim_rate: int` — steps per second (default: 10)
 - `colormap: str` — matplotlib colormap name (default: 'inferno')
+- `trail_decay: float` — exponential decay factor for depth_trails mode (default: 0.85)
 
 ### frontend/app.py
 
@@ -89,6 +100,10 @@ Main loop.
 - State machine: RUNNING, PAUSED, STEPPING, EXPLORING
 - Event loop delegates to controls.py
 - Each frame: optionally step engine → project → render → HUD → flip
+- `_trail_buffer`: float32 (H, W, 3) initialized to zeros; reset on reseed or shadow shape change.
+  Updated inside `_do_step` when `projection_mode == 'depth_trails'`:
+  calls `shadow_depth_centroid` on the new grid and accumulates into the trail.
+- `_do_step` computes depth centroid projection and passes it to `render_depth_trails` at render time.
 
 ### frontend/renderer.py
 
@@ -96,6 +111,19 @@ Main loop.
 - Binary mode: shadow * 255, expand to RGB, scale up with np.kron
 - Density mode: normalize to 0-255, apply LUT, scale up with np.kron
 - Blit via pygame.surfarray.blit_array
+
+**`render_depth_trails(depth: np.ndarray, density: np.ndarray, trail_buffer: np.ndarray, surface: pygame.Surface, config: SimConfig) -> None`**
+- `depth`: float32 (H, W) in [0, 1] — normalized depth centroid → mapped to hue
+- `density`: float32 (H, W) in [0, 1] — normalized cell count → mapped to HSV value
+- `trail_buffer`: float32 (H, W, 3) in [0, 255], **mutated in-place**:
+  1. Decay: `trail_buffer *= config.trail_decay`
+  2. Add current frame: `trail_buffer = np.minimum(trail_buffer + current_rgb_255, 255)`
+- Compositing: desaturate trail for ghost effect (`0.35 * trail + 0.65 * gray`), then
+  add current frame at full saturation. Clamp to [0, 255].
+- Scales result with np.kron (cell_size) and blits via pygame.surfarray.blit_array.
+- HSV→RGB is fully vectorised (no Python loops over pixels).
+- `_hsv_to_rgb_vec(h, s, v) -> np.ndarray`: internal helper, all float32 [0,1] inputs,
+  returns float32 (H, W, 3) [0, 1]. Loops over the 6 HSV sectors (constant, not pixel-wise).
 
 ### frontend/controls.py
 
@@ -106,7 +134,7 @@ Keyboard dispatch table. All handlers take `(state, config)` and mutate in place
 | Space | Toggle RUNNING ↔ PAUSED |
 | → | Single step (when paused) |
 | X/Y/Z | Set projection_axis to 0/1/2 |
-| D | Toggle binary ↔ density |
+| D | Cycle projection mode: binary → density → depth_trails → binary |
 | C | Cycle colormap |
 | R | Re-seed grid |
 | +/- | Adjust sim_rate |

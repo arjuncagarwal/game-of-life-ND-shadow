@@ -57,9 +57,8 @@ def handle_events(
             config.projection_axis = min(2, config.ndim - 1)
 
         elif key == pygame.K_d:
-            config.projection_mode = (
-                'density' if config.projection_mode == 'binary' else 'binary'
-            )
+            _cycle = ['binary', 'density', 'depth_trails']
+            config.projection_mode = _cycle[(_cycle.index(config.projection_mode) + 1) % len(_cycle)]
 
         elif key == pygame.K_c:
             idx = COLORMAPS.index(config.colormap) if config.colormap in COLORMAPS else 0

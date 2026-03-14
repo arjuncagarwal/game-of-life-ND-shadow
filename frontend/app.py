@@ -7,11 +7,10 @@ import numpy as np
 
 from backend.config import SimConfig
 from backend.engine import step
-from backend.projection import shadow_binary, shadow_density
+from backend.projection import shadow_binary, shadow_density, shadow_depth_centroid
 from backend.state import SimState
-from backend.projection import shadow_binary
 from frontend.colormap import build_lut
-from frontend.renderer import render_shadow
+from frontend.renderer import render_shadow, render_depth_trails
 from frontend.shadow_cast import cast_shadow, render_cast_shadow
 from frontend import hud, controls
 
@@ -40,6 +39,13 @@ class App:
         self._prev_cmap = self.config.colormap
         self._canvas = pygame.Surface((w, h))   # offscreen at logical size
         self._canvas_shape = self.config.shadow_shape
+        self._prev_generation: int = 0
+        self._trail_buffer: np.ndarray = np.zeros(
+            self.config.shadow_shape + (3,), dtype=np.float32
+        )
+        # Cache last depth projection for render_depth_trails (updated in _do_step)
+        self._last_depth: np.ndarray = np.zeros(self.config.shadow_shape, dtype=np.float32)
+        self._last_depth_density: np.ndarray = np.zeros(self.config.shadow_shape, dtype=np.float32)
 
     # ------------------------------------------------------------------
 
@@ -75,14 +81,34 @@ class App:
                 self._lut = build_lut(self.config.colormap)
                 self._prev_cmap = self.config.colormap
 
+            # Detect reseed (generation reset to 0) — clear trail buffer
+            if self.state.generation < self._prev_generation:
+                self._trail_buffer[:] = 0.0
+                self._last_depth[:] = 0.0
+                self._last_depth_density[:] = 0.0
+            self._prev_generation = self.state.generation
+
             # Rebuild canvas if shadow shape changed (e.g. axis switch)
             if self.config.shadow_shape != self._canvas_shape:
                 w, h = self._window_size()
                 self._canvas = pygame.Surface((w, h))
                 self._canvas_shape = self.config.shadow_shape
+                self._trail_buffer = np.zeros(
+                    self.config.shadow_shape + (3,), dtype=np.float32
+                )
+                self._last_depth = np.zeros(self.config.shadow_shape, dtype=np.float32)
+                self._last_depth_density = np.zeros(self.config.shadow_shape, dtype=np.float32)
 
             if self.config.render_mode == 'shadow':
                 self._render_shadow_cast()
+            elif self.config.projection_mode == 'depth_trails':
+                render_depth_trails(
+                    self._last_depth,
+                    self._last_depth_density,
+                    self._trail_buffer,
+                    self._canvas,
+                    self.config,
+                )
             else:
                 shadow = self._project()
                 render_shadow(shadow, self._canvas, self.config, self._lut)
@@ -107,6 +133,18 @@ class App:
             self.state.ruleset.survival,
         )
         self.state.generation += 1
+        if self.config.projection_mode == 'depth_trails':
+            axis = self.config.projection_axis
+            grid = self.state.grid
+            while grid.ndim > 3:
+                grid = shadow_binary(grid, axis=-1)
+            d, dens = shadow_depth_centroid(grid, axis)
+            # Double-project for 4D+: just take last result; shape matches shadow_shape
+            while d.ndim > 2:
+                d = d[..., d.shape[-1] // 2]
+                dens = dens[..., dens.shape[-1] // 2]
+            self._last_depth = d
+            self._last_depth_density = dens
 
     def _render_shadow_cast(self) -> None:
         """Compute and blit wireframe shadow cast to _canvas."""

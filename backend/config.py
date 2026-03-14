@@ -8,12 +8,13 @@ from typing import Literal
 class SimConfig:
     dimensions: tuple[int, ...]
     projection_axis: int = -1          # -1 means last axis
-    projection_mode: Literal['binary', 'density'] = 'density'
+    projection_mode: Literal['binary', 'density', 'depth_trails'] = 'density'
     seed_density: float = 0.15
     seed_mode: Literal['random', 'blob'] = 'blob'
     blob_radius: int = 8
     sim_rate: int = 10                 # steps per second
     colormap: str = 'inferno'
+    trail_decay: float = 0.85          # exponential decay for depth_trails mode
     cell_size: int = 32                # pixels per cell
     render_mode: Literal['shadow', 'heatmap'] = 'shadow'
     show_hud: bool = True

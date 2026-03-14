@@ -25,7 +25,7 @@ _KEYBINDINGS = [
     ("→",       "step (paused)"),
     ("R",       "re-seed"),
     ("E",       "explore mode"),
-    ("D",       "binary / density"),
+    ("D",       "cycle projection mode"),
     ("X/Y/Z",   "projection axis"),
     ("C",       "cycle colormap"),
     ("+/-",     "sim rate"),

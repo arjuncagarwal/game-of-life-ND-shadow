@@ -23,7 +23,7 @@ def parse_args() -> argparse.Namespace:
                         help="Blob radius for blob seed mode")
     parser.add_argument("--projection-axis", type=int, default=-1,
                         help="Axis to project along (-1 for last)")
-    parser.add_argument("--projection-mode", choices=["binary", "density"], default="density",
+    parser.add_argument("--projection-mode", choices=["binary", "density", "depth_trails"], default="density",
                         help="Shadow projection mode")
     parser.add_argument("--sim-rate", type=int, default=10,
                         help="Simulation steps per second")
