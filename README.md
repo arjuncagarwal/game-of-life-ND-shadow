@@ -1,4 +1,4 @@
-# life-shadow
+# game-of-life-ND-shadow
 
 Runs Conway-style cellular automata in N dimensions and visualizes the result as an (N−1)-dimensional shadow projection. The primary target is 3D → 2D, with 4D → 3D supported via double-projection.
 
